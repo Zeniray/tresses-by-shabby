@@ -1,0 +1,47 @@
+/**
+ * Tresses by Shabby - Badge & Tag Styles
+ * 
+ * Editorial details:
+ * - Restrained typography and subtle tinting
+ * - Non-bulbous, crisp tags for product attributes (e.g., "Virgin Hair", "HD Lace", "Limited")
+ */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-editorial);
+  text-transform: uppercase;
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--radius-xs);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.badge-default {
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+}
+
+.badge-rose {
+  background-color: var(--color-primary-light);
+  color: var(--color-burgundy);
+  border: 1px solid var(--color-primary-border);
+}
+
+.badge-burgundy {
+  background-color: var(--color-burgundy);
+  color: var(--color-text-inverse);
+  border: 1px solid var(--color-burgundy);
+}
+
+.badge-outline {
+  background-color: transparent;
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+}
+

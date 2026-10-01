@@ -1,0 +1,181 @@
+/**
+ * Tresses by Shabby - Typography System
+ * 
+ * Editorial Voice:
+ * - Cormorant Garamond for major display, editorial headings, quotes, and brand moments.
+ * - DM Sans for high-clarity navigation, product data, prices, forms, and interactive UI.
+ */
+
+/* ---------------------------------------------------------------------------
+ * Headings
+ * ------------------------------------------------------------------------- */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 0;
+  color: var(--color-text);
+  text-rendering: optimizeLegibility;
+}
+
+h1 {
+  font-family: var(--font-editorial);
+  font-size: clamp(2.25rem, 4.5vw, 3.5rem);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--tracking-tight);
+}
+
+h2 {
+  font-family: var(--font-editorial);
+  font-size: clamp(1.75rem, 3.2vw, 2.5rem);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-snug);
+  letter-spacing: var(--tracking-tight);
+}
+
+h3 {
+  font-family: var(--font-editorial);
+  font-size: clamp(1.35rem, 2.2vw, 1.85rem);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-snug);
+}
+
+h4 {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-snug);
+  letter-spacing: var(--tracking-wide);
+}
+
+h5 {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+}
+
+h6 {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-editorial);
+  text-transform: uppercase;
+}
+
+/* ---------------------------------------------------------------------------
+ * Editorial Typographic Treatments
+ * ------------------------------------------------------------------------- */
+
+.editorial-display {
+  font-family: var(--font-editorial);
+  font-size: var(--font-size-display);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--tracking-display);
+}
+
+.editorial-display em,
+.editorial-italic {
+  font-family: var(--font-editorial);
+  font-style: italic;
+  font-weight: var(--font-weight-regular);
+}
+
+.editorial-eyebrow,
+.editorial-kicker {
+  display: inline-block;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-editorial);
+  text-transform: uppercase;
+  color: var(--color-primary);
+}
+
+.editorial-eyebrow--muted {
+  color: var(--color-text-muted);
+}
+
+.editorial-eyebrow--burgundy {
+  color: var(--color-burgundy);
+}
+
+.editorial-lead {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-relaxed);
+  color: var(--color-text);
+  max-width: 65ch;
+}
+
+.editorial-quote {
+  font-family: var(--font-editorial);
+  font-size: clamp(1.35rem, 2.5vw, 1.85rem);
+  font-style: italic;
+  line-height: var(--line-height-snug);
+  color: var(--color-burgundy);
+  border-left: 2px solid var(--color-primary);
+  padding-left: var(--space-5);
+  margin: var(--space-8) 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * Functional & Content Typography (DM Sans)
+ * ------------------------------------------------------------------------- */
+
+p {
+  margin: 0;
+  line-height: var(--line-height-normal);
+}
+
+.text-body {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  color: var(--color-text);
+}
+
+.text-muted {
+  color: var(--color-text-muted);
+}
+
+.text-sm {
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.text-xs {
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-normal);
+}
+
+.text-semibold {
+  font-weight: var(--font-weight-semibold);
+}
+
+.text-medium {
+  font-weight: var(--font-weight-medium);
+}
+
+.price-tag {
+  font-family: var(--font-sans);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-md);
+  color: var(--color-text);
+  letter-spacing: var(--tracking-wide);
+  font-variant-numeric: tabular-nums;
+}
+
+.price-tag--accent {
+  color: var(--color-burgundy);
+}
+
+.price-tag--lg {
+  font-size: var(--font-size-xl);
+}
+

@@ -1,0 +1,146 @@
+/**
+ * Tresses by Shabby - Design Tokens
+ * 
+ * Aesthetic Direction: Soft power meets fashion editorial.
+ * Strict rules:
+ * - Restrained borders and elevation (no harsh artificial drop shadows)
+ * - Restrained corner radii (minimal/crisp, no bubbly rounded cards)
+ * - Accessible contrast across all color pairs
+ */
+
+:root {
+  /* -------------------------------------------------------------------------
+   * Color System
+   * ----------------------------------------------------------------------- */
+
+  /* Primary Brand Canvas & Surfaces */
+  --color-bg: #F8F5F0;             /* Warm ivory background */
+  --color-surface: #FFFDFC;        /* Soft white surface */
+  --color-surface-subtle: #F3ECE6; /* Warm muted surface for alternating areas */
+
+  /* Brand Accents */
+  --color-primary: #B85C78;        /* Primary dusty rose pink */
+  --color-primary-hover: #9E4A63;  /* Accessible hover variant */
+  --color-primary-light: #F7EAEF;  /* Delicate rose tint for tags/accents */
+  --color-primary-border: #E4A7B8; /* Delicate rose border tint */
+
+  --color-burgundy: #542333;       /* Deep burgundy */
+  --color-burgundy-hover: #3E1824; /* Accessible hover variant */
+  --color-burgundy-subtle: rgba(84, 35, 51, 0.08); /* Subtle burgundy overlay */
+
+  /* Typography Colors */
+  --color-text: #211D1E;           /* Soft black text - primary high-contrast */
+  --color-text-muted: #756D6F;     /* Warm grey muted text - readable secondary */
+  --color-text-inverse: #FFFDFC;   /* Soft white text for dark/accent backgrounds */
+
+  /* Borders & Dividers */
+  --color-border: #DED6D2;         /* Warm taupe border */
+  --color-border-subtle: rgba(222, 214, 210, 0.55);
+  --color-border-dark: #211D1E;    /* High-contrast editorial border */
+
+  /* Semantic Feedback & States (harmonized with warm palette) */
+  --color-focus: #B85C78;          /* Dusty rose focus outline */
+  --color-focus-ring: rgba(184, 92, 120, 0.35);
+  --color-error: #9C2A3E;          /* Deep crimson red for accessible errors */
+  --color-error-bg: #FCF2F4;
+  --color-error-border: #E8B6C1;
+  --color-success: #2E5C46;        /* Deep sage for confirmations */
+  --color-success-bg: #EFF6F2;
+  --color-success-border: #B2D4C2;
+
+  /* -------------------------------------------------------------------------
+   * Typography System
+   * ----------------------------------------------------------------------- */
+
+  /* Families */
+  --font-editorial: 'Cormorant Garamond', Garamond, 'Didot', 'Bodoni MT', 'Times New Roman', serif;
+  --font-sans: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  /* Font Scale */
+  --font-size-2xs: 0.6875rem; /* 11px */
+  --font-size-xs: 0.75rem;    /* 12px */
+  --font-size-sm: 0.875rem;   /* 14px */
+  --font-size-base: 1rem;     /* 16px */
+  --font-size-md: 1.125rem;   /* 18px */
+  --font-size-lg: 1.25rem;    /* 20px */
+  --font-size-xl: 1.5rem;     /* 24px */
+  --font-size-2xl: 2rem;      /* 32px */
+  --font-size-3xl: 2.5rem;    /* 40px */
+  --font-size-4xl: 3.25rem;   /* 52px */
+  --font-size-display: clamp(2.75rem, 6vw + 0.5rem, 5rem); /* Editorial statement */
+  --font-size-hero-sub: clamp(1.125rem, 2vw + 0.5rem, 1.5rem);
+
+  /* Font Weights */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Line Heights */
+  --line-height-tight: 1.1;
+  --line-height-snug: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.7;
+
+  /* Letter Spacing (Tracking) */
+  --tracking-tight: -0.025em;
+  --tracking-normal: 0em;
+  --tracking-wide: 0.04em;
+  --tracking-wider: 0.08em;
+  --tracking-editorial: 0.14em; /* Uppercase editorial kickers, tags, prices */
+  --tracking-display: -0.015em;
+
+  /* -------------------------------------------------------------------------
+   * Spacing System (8px / 4px modular rhythm)
+   * ----------------------------------------------------------------------- */
+  --space-0-5: 0.125rem; /* 2px */
+  --space-1: 0.25rem;    /* 4px */
+  --space-2: 0.5rem;     /* 8px */
+  --space-3: 0.75rem;    /* 12px */
+  --space-4: 1rem;       /* 16px */
+  --space-5: 1.25rem;    /* 20px */
+  --space-6: 1.5rem;     /* 24px */
+  --space-8: 2rem;       /* 32px */
+  --space-10: 2.5rem;    /* 40px */
+  --space-12: 3rem;      /* 48px */
+  --space-16: 4rem;      /* 64px */
+  --space-20: 5rem;      /* 80px */
+  --space-24: 6rem;      /* 96px */
+  --space-32: 8rem;      /* 128px */
+
+  /* -------------------------------------------------------------------------
+   * Layout Conventions
+   * ----------------------------------------------------------------------- */
+  --container-max: 1320px;
+  --container-narrow: 840px;
+  --container-padding: clamp(1.25rem, 4vw, 3rem);
+
+  /* -------------------------------------------------------------------------
+   * Geometry & Elevation (Restrained, crisp, non-bubble)
+   * ----------------------------------------------------------------------- */
+  --radius-none: 0px;
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+
+  --shadow-none: none;
+  --shadow-subtle: 0 1px 3px rgba(33, 29, 30, 0.05);
+  --shadow-elevated: 0 8px 24px rgba(84, 35, 51, 0.07);
+  --shadow-dropdown: 0 12px 32px rgba(33, 29, 30, 0.09);
+
+  /* -------------------------------------------------------------------------
+   * Transitions & Motion (Subtle & purposeful)
+   * ----------------------------------------------------------------------- */
+  --transition-fast: 150ms ease;
+  --transition-base: 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --transition-editorial: 400ms cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* -------------------------------------------------------------------------
+   * Z-Index System
+   * ----------------------------------------------------------------------- */
+  --z-base: 1;
+  --z-header: 100;
+  --z-dropdown: 200;
+  --z-overlay: 400;
+  --z-modal: 500;
+}
+

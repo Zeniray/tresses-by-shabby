@@ -1,0 +1,202 @@
+/**
+ * Tresses by Shabby - Base & Layout Foundations
+ */
+
+/* ---------------------------------------------------------------------------
+ * Box Sizing & Document Resets
+ * ------------------------------------------------------------------------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+}
+
+img,
+picture,
+video,
+canvas,
+svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+/* ---------------------------------------------------------------------------
+ * Selection & Focus State Accessibility
+ * ------------------------------------------------------------------------- */
+::selection {
+  background-color: var(--color-burgundy);
+  color: var(--color-surface);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 3px;
+}
+
+/* Remove default focus when not using keyboard */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ---------------------------------------------------------------------------
+ * Links & Navigation Anchors
+ * ------------------------------------------------------------------------- */
+a {
+  color: inherit;
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.link-editorial {
+  color: var(--color-text);
+  text-decoration: underline;
+  text-decoration-color: var(--color-primary);
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+  transition: color var(--transition-fast), text-decoration-color var(--transition-fast);
+}
+
+.link-editorial:hover,
+.link-editorial:focus-visible {
+  color: var(--color-burgundy);
+  text-decoration-color: var(--color-burgundy);
+}
+
+.link-subtle {
+  color: var(--color-text-muted);
+  transition: color var(--transition-fast);
+}
+
+.link-subtle:hover,
+.link-subtle:focus-visible {
+  color: var(--color-text);
+}
+
+.link-nav {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-text);
+  padding: var(--space-2) 0;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.link-nav::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 0%;
+  height: 1.5px;
+  background-color: var(--color-primary);
+  transition: width var(--transition-base);
+}
+
+.link-nav:hover::after,
+.link-nav:focus-visible::after,
+.link-nav.is-active::after {
+  width: 100%;
+}
+
+.link-arrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--color-burgundy);
+  transition: gap var(--transition-fast);
+}
+
+.link-arrow:hover,
+.link-arrow:focus-visible {
+  gap: var(--space-3);
+  color: var(--color-primary);
+}
+
+/* ---------------------------------------------------------------------------
+ * Layout Primitives & Containers
+ * ------------------------------------------------------------------------- */
+.container {
+  width: 100%;
+  max-width: var(--container-max);
+  margin-inline: auto;
+  padding-inline: var(--container-padding);
+}
+
+.container-narrow {
+  width: 100%;
+  max-width: var(--container-narrow);
+  margin-inline: auto;
+  padding-inline: var(--container-padding);
+}
+
+.editorial-divider {
+  width: 100%;
+  height: 1px;
+  background-color: var(--color-border);
+  border: none;
+  margin: var(--space-8) 0;
+}
+
+.editorial-divider--subtle {
+  background-color: var(--color-border-subtle);
+}
+
+.editorial-divider--burgundy {
+  background-color: var(--color-burgundy);
+  height: 2px;
+}
+
+/* Screen reader only utility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Responsive visibility utilities */
+@media (max-width: 768px) {
+  .hidden-mobile {
+    display: none !important;
+  }
+}
+
+@media (min-width: 769px) {
+  .hidden-desktop {
+    display: none !important;
+  }
+}
+
