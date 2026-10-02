@@ -47,6 +47,30 @@
   transform: scale(1.02);
 }
 
+/* Studio → model/wearing crossfade */
+.tbs-product-media-stack {
+  position: relative;
+}
+
+.tbs-product-image-wearing {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 450ms ease;
+  pointer-events: none;
+}
+
+.tbs-product-image-wearing .editorial-img-container {
+  height: 100%;
+}
+
+@media (hover: hover) {
+  .tbs-product-card:hover .tbs-product-image-wearing,
+  .tbs-product-media-container:focus-visible .tbs-product-image-wearing {
+    opacity: 1;
+  }
+}
+
 .tbs-product-inspect-hint {
   position: absolute;
   bottom: 0;

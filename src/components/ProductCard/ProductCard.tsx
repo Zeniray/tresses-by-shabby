@@ -22,6 +22,12 @@ export function ProductCard({
     product.variants[1] || product.variants[0]
   )
   const [isAddedFeedback, setIsAddedFeedback] = useState(false)
+  const [wearingImageFailed, setWearingImageFailed] = useState(false)
+
+  // Studio → model/wearing hover swap (only for local product photography)
+  const wearingImageSrc = /^\/products\/.+\.jpe?g$|^\/products\/.+\.jfif$/.test(product.images.primary)
+    ? product.images.primary.replace(/\.(jfif|jpe?g)$/, '-wearing.$1')
+    : null
 
   const handleVariantChange = (variant: ProductVariant) => {
     setSelectedVariant(variant)
@@ -76,12 +82,34 @@ export function ProductCard({
           </div>
         )}
 
-        <EditorialImage
-          slug={product.images.primary}
-          alt={product.images.alt}
-          aspectRatio="3:4"
-          className="tbs-product-image"
-        />
+        <div className="tbs-product-media-stack">
+          <EditorialImage
+            slug={product.images.primary}
+            alt={product.images.alt}
+            aspectRatio="3:4"
+            className="tbs-product-image"
+          />
+          {wearingImageSrc && !wearingImageFailed && (
+            <div className="tbs-product-image-wearing">
+              <EditorialImage
+                slug={wearingImageSrc}
+                alt={`${product.name} worn by a model`}
+                aspectRatio="3:4"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Probe: if the wearing image can't be loaded, drop the overlay */}
+        {wearingImageSrc && (
+          <img
+            src={wearingImageSrc}
+            alt=""
+            aria-hidden="true"
+            style={{ display: 'none' }}
+            onError={() => setWearingImageFailed(true)}
+          />
+        )}
 
         <div className="tbs-product-inspect-hint">
           <span>Inspect Unit</span>
