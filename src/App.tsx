@@ -1,683 +1,1083 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import type { FormEvent } from 'react'
+import type { Product, ProductVariant } from './types/product.ts'
+import { TEXTURE_GUIDES } from './data/products.ts'
+import { useProducts } from './hooks/useProducts.ts'
+import { createOrder, CheckoutError } from './lib/orders.ts'
+import { formatNaira } from './utils/currency.ts'
 import {
   Header,
   Container,
   Button,
-  Input,
-  Select,
   Badge,
+  EditorialImage,
+  ProductCard,
+  Input,
 } from './components/index.ts'
 import './App.css'
 
+interface BagItem {
+  id: string
+  product: Product
+  variant: ProductVariant
+  quantity: number
+}
+
+const BAG_STORAGE_KEY = 'tresses-bag'
+
+// Restore the bag from localStorage, discarding anything malformed
+function loadBagFromStorage(): BagItem[] {
+  try {
+    const raw = localStorage.getItem(BAG_STORAGE_KEY)
+    if (!raw) return []
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((item): item is BagItem => {
+      if (typeof item !== 'object' || item === null) return false
+      const candidate = item as BagItem
+      return (
+        typeof candidate.id === 'string' &&
+        typeof candidate.quantity === 'number' &&
+        Number.isFinite(candidate.quantity) &&
+        candidate.quantity > 0 &&
+        typeof candidate.product === 'object' &&
+        candidate.product !== null &&
+        typeof candidate.product.id === 'string' &&
+        typeof candidate.product.name === 'string' &&
+        typeof candidate.product.images === 'object' &&
+        candidate.product.images !== null &&
+        typeof candidate.product.images.primary === 'string' &&
+        typeof candidate.variant === 'object' &&
+        candidate.variant !== null &&
+        typeof candidate.variant.id === 'string' &&
+        typeof candidate.variant.length === 'string' &&
+        typeof candidate.variant.price === 'number' &&
+        Number.isFinite(candidate.variant.price)
+      )
+    })
+  } catch {
+    return []
+  }
+}
+
 export default function App() {
-  const [selectedLength, setSelectedLength] = useState<string>('18"')
-  const [testInput, setTestInput] = useState('')
-  const [selectedTexture, setSelectedTexture] = useState('body-wave')
-  const [newsletterSubscribed, setNewsletterSubscribed] = useState(false)
+  // Shopping session state
+  const [bagItems, setBagItems] = useState<BagItem[]>(loadBagFromStorage)
+  const [isBagOpen, setIsBagOpen] = useState(false)
+  const [selectedProductForInspect, setSelectedProductForInspect] = useState<Product | null>(null)
+  const [modalVariant, setModalVariant] = useState<ProductVariant | null>(null)
 
-  // Color tokens metadata for showcase
-  const colorSwatches = [
-    {
-      name: 'Warm Ivory Background',
-      hex: '#F8F5F0',
-      bg: '#F8F5F0',
-      textColor: '#211D1E',
-      role: 'Global canvas background. Soft, editorial, warm paper feel.',
-    },
-    {
-      name: 'Primary Dusty Rose Pink',
-      hex: '#B85C78',
-      bg: '#B85C78',
-      textColor: '#FFFDFC',
-      role: 'Brand personality. Sophisticated, mature, and bold pink.',
-    },
-    {
-      name: 'Deep Burgundy',
-      hex: '#542333',
-      bg: '#542333',
-      textColor: '#FFFDFC',
-      role: 'High-contrast accents, primary buttons, and anchor elements.',
-    },
-    {
-      name: 'Soft Black Text',
-      hex: '#211D1E',
-      bg: '#211D1E',
-      textColor: '#FFFDFC',
-      role: 'Primary reading text. Ultra-high accessible contrast.',
-    },
-    {
-      name: 'Warm Grey Muted Text',
-      hex: '#756D6F',
-      bg: '#756D6F',
-      textColor: '#FFFDFC',
-      role: 'Secondary metadata, helper copy, and subtle labels.',
-    },
-    {
-      name: 'Soft White Surface',
-      hex: '#FFFDFC',
-      bg: '#FFFDFC',
-      textColor: '#211D1E',
-      role: 'Clean surfaces, input backgrounds, and crisp highlights.',
-    },
-    {
-      name: 'Warm Taupe Border',
-      hex: '#DED6D2',
-      bg: '#DED6D2',
-      textColor: '#211D1E',
-      role: 'Restrained, understated dividing lines and boundaries.',
-    },
-  ]
+  // Checkout / confirmation view state
+  const [view, setView] = useState<'shop' | 'checkout' | 'confirmation'>('shop')
+  const [checkoutForm, setCheckoutForm] = useState({
+    customerName: '',
+    email: '',
+    phone: '',
+    deliveryAddress: '',
+  })
+  const [checkoutError, setCheckoutError] = useState<string | null>(null)
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false)
+  const [placedOrder, setPlacedOrder] = useState<{ id: string; email: string; total: number } | null>(null)
 
-  const textureOptions = [
-    { value: 'body-wave', label: 'Raw Burmese Body Wave' },
-    { value: 'silky-straight', label: 'Cambodian Silky Straight' },
-    { value: 'deep-curly', label: 'South Indian Deep Curly' },
-    { value: 'kinky-straight', label: 'Blowout Kinky Straight' },
-  ]
+  // Filter state for collection
+  const [activeTextureFilter, setActiveTextureFilter] = useState<string>('All')
+  const [newsletterEmail, setNewsletterEmail] = useState('')
+  const [newsletterFeedback, setNewsletterFeedback] = useState(false)
+
+  // Live catalogue from Supabase
+  const { products, loading: catalogueLoading, error: catalogueError } = useProducts()
+
+  // Filtered products list matching approved texture categories
+  const filteredProducts =
+    activeTextureFilter === 'All'
+      ? products
+      : products.filter((p) => p.texture.toLowerCase() === activeTextureFilter.toLowerCase())
+
+  // Add to Bag handler
+  const handleAddToBag = (product: Product, variant: ProductVariant) => {
+    setBagItems((prev) => {
+      const existingIndex = prev.findIndex(
+        (item) => item.product.id === product.id && item.variant.id === variant.id
+      )
+      if (existingIndex > -1) {
+        const next = [...prev]
+        next[existingIndex] = {
+          ...next[existingIndex],
+          quantity: next[existingIndex].quantity + 1,
+        }
+        return next
+      }
+      return [
+        ...prev,
+        {
+          id: `${product.id}-${variant.id}`,
+          product,
+          variant,
+          quantity: 1,
+        },
+      ]
+    })
+  }
+
+  // Persist the bag across refreshes
+  useEffect(() => {
+    try {
+      localStorage.setItem(BAG_STORAGE_KEY, JSON.stringify(bagItems))
+    } catch {
+      // Storage unavailable (private mode, quota) — bag still works in memory
+    }
+  }, [bagItems])
+
+  // Remove from Bag handler
+  const handleRemoveFromBag = (itemId: string) => {
+    setBagItems((prev) => prev.filter((item) => item.id !== itemId))
+  }
+
+  // Quantity controls
+  const handleIncreaseQuantity = (itemId: string) => {
+    setBagItems((prev) =>
+      prev.map((item) =>
+        item.id === itemId ? { ...item, quantity: item.quantity + 1 } : item
+      )
+    )
+  }
+
+  const handleDecreaseQuantity = (itemId: string) => {
+    setBagItems((prev) =>
+      prev
+        .map((item) =>
+          item.id === itemId ? { ...item, quantity: item.quantity - 1 } : item
+        )
+        .filter((item) => item.quantity > 0)
+    )
+  }
+
+  // Open modal for quick inspect
+  const handleOpenInspect = (product: Product) => {
+    setSelectedProductForInspect(product)
+    setModalVariant(product.variants[1] || product.variants[0])
+  }
+
+  // Calculate bag subtotal in Naira
+  const bagSubtotal = bagItems.reduce(
+    (total, item) => total + item.variant.price * item.quantity,
+    0
+  )
+  const totalItemCount = bagItems.reduce((total, item) => total + item.quantity, 0)
+
+  const handleProceedToCheckout = () => {
+    setIsBagOpen(false)
+    if (bagItems.length === 0) {
+      setCheckoutError('Your bag is empty. Add a piece before checking out.')
+      return
+    }
+    setCheckoutError(null)
+    setView('checkout')
+    window.scrollTo(0, 0)
+  }
+
+  const handleBackToShop = () => {
+    setView('shop')
+    window.scrollTo(0, 0)
+  }
+
+  // Place order handler
+  const handlePlaceOrder = async (e: FormEvent) => {
+    e.preventDefault()
+    setCheckoutError(null)
+
+    if (bagItems.length === 0) {
+      setCheckoutError('Your bag is empty. Add a piece before checking out.')
+      return
+    }
+
+    const { customerName, email, phone, deliveryAddress } = checkoutForm
+    if (!customerName.trim() || !email.trim() || !phone.trim() || !deliveryAddress.trim()) {
+      setCheckoutError('Please fill in your name, email, phone number, and delivery address.')
+      return
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setCheckoutError('Please enter a valid email address.')
+      return
+    }
+    if (phone.replace(/\D/g, '').length < 7) {
+      setCheckoutError('Please enter a valid phone number.')
+      return
+    }
+
+    setIsPlacingOrder(true)
+    try {
+      const order = await createOrder(
+        {
+          customerName: customerName.trim(),
+          email: email.trim(),
+          phone: phone.trim(),
+          deliveryAddress: deliveryAddress.trim(),
+        },
+        bagItems.map((item) => ({
+          productVariantId: item.variant.id,
+          quantity: item.quantity,
+        }))
+      )
+      setPlacedOrder(order)
+      setBagItems([])
+      setView('confirmation')
+      window.scrollTo(0, 0)
+    } catch (err) {
+      if (err instanceof CheckoutError) {
+        setCheckoutError(err.message)
+      } else {
+        setCheckoutError('We could not place your order right now. Please check your connection and try again.')
+      }
+    } finally {
+      setIsPlacingOrder(false)
+    }
+  }
 
   return (
-    <div className="site-wrapper">
-      {/* 1. Masthead / Navigation Header */}
-      <Header />
+    <div className="storefront-root">
+      {/* 1. Header */}
+      <Header
+        bagCount={totalItemCount}
+        onOpenBag={() => setIsBagOpen(true)}
+      />
 
       <main id="main-content">
-        {/* 2. Editorial Hero & Brand Mood (Asymmetry & Editorial Whitespace) */}
-        <section className="editorial-section editorial-section--subtle" aria-labelledby="hero-heading">
+        {view === 'shop' && (
+        <>
+        {/* 2. Hero */}
+        <section className="editorial-section editorial-section--subtle" aria-labelledby="hero-title">
           <Container>
-            <div className="editorial-hero-grid">
-              <div className="hero-statement-content">
-                <div className="hero-statement-eyebrow">
-                  <Badge variant="rose">Atelier Collection</Badge>
-                  <span className="editorial-eyebrow editorial-eyebrow--muted">Edition No. 01</span>
+            <div className="hero-editorial-grid">
+              <div className="hero-copy-block">
+                <div className="hero-eyebrow-row">
+                  <Badge variant="rose">The Tresses Edit No. 01</Badge>
+                  <span className="editorial-eyebrow editorial-eyebrow--muted">Lagos &bull; Nigeria</span>
                 </div>
 
-                <h1 id="hero-heading" className="editorial-display hero-statement-title">
-                  Soft power meets <em>fashion editorial.</em>
+                <h1 id="hero-title" className="editorial-display hero-title">
+                  Hair that makes you look twice.
                 </h1>
 
-                <p className="hero-statement-text">
-                  Tresses by Shabby crafts bespoke, fashion-forward wigs designed for everyday wear
-                  and unforgettable special occasions. Engineered with uncompromising hair quality,
-                  refined lace construction, and a silhouette meant to evoke one immediate reaction:
-                  <strong style={{ color: 'var(--color-text)', display: 'block', marginTop: 'var(--space-2)' }}>
-                    &ldquo;I need to look at that again.&rdquo;
-                  </strong>
+                <p className="hero-subtext">
+                  Wigs made for the days you want to keep it effortless, and the days you want to make an entrance.
                 </p>
 
-                <div className="hero-statement-actions">
-                  <Button variant="primary" size="lg">
-                    Discover Collection
+                <div className="hero-actions-row">
+                  <Button as="a" href="#collection" variant="primary" size="lg">
+                    Explore the Collection
                   </Button>
-                  <Button variant="secondary" size="lg">
-                    Explore Textures
-                  </Button>
-                  <Button variant="editorial" size="md">
-                    Read The Philosophy &rarr;
+                  <Button as="a" href="#atelier" variant="outline" size="lg">
+                    Meet Tresses &rarr;
                   </Button>
                 </div>
               </div>
 
-              {/* Product-First Visual Dominance Frame (Sharp geometry, no bubbly corners) */}
-              <div className="hero-visual-frame" aria-label="Featured Wig Preview">
-                <div className="hero-visual-art">
-                  <svg
-                    viewBox="0 0 400 500"
-                    width="100%"
-                    height="100%"
-                    style={{ background: 'linear-gradient(180deg, #F3ECE6 0%, #EFE8E1 100%)' }}
-                    role="img"
-                    aria-label="Editorial wig illustration showcasing raw wave texture and lace perfection"
-                  >
-                    {/* Background subtle editorial lines */}
-                    <line x1="20" y1="20" x2="380" y2="20" stroke="#DED6D2" strokeWidth="0.8" />
-                    <line x1="20" y1="480" x2="380" y2="480" stroke="#DED6D2" strokeWidth="0.8" />
-                    
-                    {/* Silhouette of editorial model wearing luxury wig */}
-                    <path
-                      d="M200 110 C160 110 130 145 130 200 C130 290 110 380 90 480 L310 480 C290 380 270 290 270 200 C270 145 240 110 200 110 Z"
-                      fill="#542333"
-                      opacity="0.9"
-                    />
-                    {/* Flowing hair highlights in primary rose */}
-                    <path
-                      d="M175 140 C145 190 140 260 120 380 C150 330 160 250 180 180 Z"
-                      fill="#B85C78"
-                      opacity="0.65"
-                    />
-                    <path
-                      d="M225 140 C255 190 260 260 280 380 C250 330 240 250 220 180 Z"
-                      fill="#B85C78"
-                      opacity="0.65"
-                    />
-                    {/* Editorial monogram watermark */}
-                    <circle cx="200" cy="80" r="16" fill="#FFFDFC" stroke="#DED6D2" strokeWidth="1" />
-                    <text
-                      x="200"
-                      y="85"
-                      fontFamily="Cormorant Garamond, serif"
-                      fontSize="14"
-                      textAnchor="middle"
-                      fill="#542333"
-                    >
-                      S
-                    </text>
-                  </svg>
-                </div>
-                <div className="hero-visual-caption">
+              {/* Large deliberate 4:5 aspect ratio image frame */}
+              <div className="hero-image-frame" aria-label="Featured Wig Preview">
+                <EditorialImage
+                  slug="/products/classic-body-wave.jfif"
+                  alt="Classic Body Wave wig with soft S-wave texture"
+                  aspectRatio="4:5"
+                />
+                <div className="hero-image-caption">
                   <span style={{ fontWeight: 600, color: 'var(--color-text)' }}>
-                    Signature 24&quot; Burmese Body Wave
+                    Classic Body Wave
                   </span>
-                  <span>From $380.00</span>
+                  <span className="price-tag price-tag--accent">{formatNaira(540000)}</span>
                 </div>
               </div>
             </div>
           </Container>
         </section>
 
-        {/* 3. The Color System Foundation */}
-        <section className="editorial-section" id="palette" aria-labelledby="palette-heading">
+        {/* 3. Featured Collection */}
+        <section className="editorial-section" id="collection" aria-labelledby="collection-title">
           <Container>
             <div className="editorial-section-header">
-              <span className="editorial-eyebrow">Design System Foundation</span>
-              <h2 id="palette-heading">Curated Color System</h2>
+              <span className="editorial-eyebrow">The Collection</span>
+              <h2 id="collection-title">Start with the hair.</h2>
               <p className="text-muted">
-                Soft power meets fashion editorial. Built strictly around warm ivory, primary dusty
-                rose, deep burgundy, soft black, and warm taupe dividers.
+                From soft waves to sleek straight lengths, explore the textures and styles that make getting ready feel a little more special.
               </p>
             </div>
 
-            <div className="swatches-grid">
-              {colorSwatches.map((swatch) => (
-                <div key={swatch.hex} className="swatch-item">
-                  <div
-                    className="swatch-color-box"
-                    style={{
-                      backgroundColor: swatch.bg,
-                      borderBottom: '1px solid var(--color-border-subtle)',
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: '0.6875rem',
-                        fontWeight: 600,
-                        letterSpacing: '0.08em',
-                        color: swatch.textColor,
-                        opacity: 0.85,
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      {swatch.hex}
-                    </span>
-                  </div>
-                  <div className="swatch-info">
-                    <span className="swatch-name">{swatch.name}</span>
-                    <span className="swatch-hex">{swatch.hex}</span>
-                    <p className="swatch-role">{swatch.role}</p>
-                  </div>
-                </div>
+            {/* Texture Filter Bar */}
+            <div className="collection-filter-bar" role="group" aria-label="Filter collection by texture">
+              <span className="collection-filter-label">Filter:</span>
+              {[
+                { label: 'All', value: 'All' },
+                { label: 'Wavy', value: 'Wavy' },
+                { label: 'Straight', value: 'Straight' },
+                { label: 'Curly', value: 'Curly' },
+                { label: 'Kinky Straight', value: 'Kinky Straight' },
+              ].map((filterItem) => (
+                <button
+                  key={filterItem.value}
+                  type="button"
+                  className={`collection-filter-chip ${
+                    activeTextureFilter === filterItem.value ? 'is-active' : ''
+                  }`}
+                  onClick={() => setActiveTextureFilter(filterItem.value)}
+                >
+                  {filterItem.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Product Grid */}
+            <div className="product-showcase-grid">
+              {catalogueLoading && (
+                <p className="catalogue-status-message text-muted" role="status" aria-live="polite">
+                  Loading the collection&hellip;
+                </p>
+              )}
+              {!catalogueLoading && catalogueError && (
+                <p className="catalogue-status-message catalogue-status-message--error" role="alert">
+                  {catalogueError}
+                </p>
+              )}
+              {!catalogueLoading && !catalogueError && products.length === 0 && (
+                <p className="catalogue-status-message text-muted" role="status">
+                  The collection is being prepared. Please check back soon.
+                </p>
+              )}
+              {!catalogueLoading && !catalogueError && products.length > 0 && filteredProducts.length === 0 && (
+                <p className="catalogue-status-message text-muted" role="status">
+                  No pieces found for this filter.
+                </p>
+              )}
+              {!catalogueLoading && !catalogueError && filteredProducts.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  onAddToBag={handleAddToBag}
+                  onSelectProduct={handleOpenInspect}
+                />
               ))}
             </div>
           </Container>
         </section>
 
-        {/* 4. Typography Hierarchy & Pairings */}
-        <section className="editorial-section editorial-section--subtle" id="typography" aria-labelledby="typography-heading">
+        {/* 4. The Atelier / Brand Story */}
+        <section className="editorial-section editorial-section--subtle" id="atelier" aria-labelledby="atelier-title">
           <Container>
-            <div className="editorial-section-header">
-              <span className="editorial-eyebrow">Editorial Voice</span>
-              <h2 id="typography-heading">Typography Hierarchy</h2>
-              <p className="text-muted">
-                Harmonizing expressive serif display moments (Cormorant Garamond) with clear,
-                accessible functional geometry (DM Sans) for shopping ease.
-              </p>
-            </div>
+            <div className="atelier-story-grid">
+              {/* Left Column: Image Slot */}
+              <div className="atelier-image-slot">
+                <EditorialImage
+                  slug="/products/silky-straight.jfif"
+                  alt="Tresses by Shabby wig styling"
+                  aspectRatio="3:4"
+                />
+              </div>
 
-            <div className="typography-specimens">
-              <div className="specimen-row">
-                <div className="specimen-meta">
-                  <span className="specimen-tag">Display Headline</span>
-                  <span className="specimen-details">Cormorant Garamond 56px+</span>
+              {/* Right Column: Editorial Copy */}
+              <div className="atelier-content-block">
+                <span className="editorial-eyebrow">The Atelier</span>
+                <h2 id="atelier-title">Your hair. Your mood. Your moment.</h2>
+
+                <p className="text-body" style={{ color: 'var(--color-text-muted)', lineHeight: '1.7' }}>
+                  We created Tresses by Shabby for women who love the feeling of finding the one.
+                </p>
+
+                <p className="text-body" style={{ color: 'var(--color-text-muted)', lineHeight: '1.7' }}>
+                  The texture that feels like you. The length that changes the whole look. The style that makes getting ready feel a little different.
+                </p>
+
+                <p className="text-body" style={{ color: 'var(--color-text-muted)', lineHeight: '1.7' }}>
+                  Whether you&apos;re keeping things effortless or dressing all the way up, we want choosing your wig to feel just as good as wearing it.
+                </p>
+
+                <div style={{ marginTop: 'var(--space-2)', borderLeft: '2px solid var(--color-primary)', paddingLeft: 'var(--space-4)' }}>
+                  <span className="editorial-eyebrow" style={{ color: 'var(--color-burgundy)', display: 'block', marginBottom: '4px' }}>
+                    Soft power meets fashion editorial.
+                  </span>
+                  <p className="text-sm" style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+                    Thoughtfully designed wigs for women who want beauty without the fuss.
+                  </p>
                 </div>
-                <div>
-                  <div className="editorial-display">
-                    The Art of <em>Undetectable</em> Hair.
+
+                {/* Brand Values / Pillars: Made with intention */}
+                <div style={{ marginTop: 'var(--space-6)', paddingTop: 'var(--space-6)', borderTop: '1px solid var(--color-border-subtle)' }}>
+                  <span className="editorial-eyebrow" style={{ color: 'var(--color-text)', display: 'block', marginBottom: 'var(--space-4)' }}>
+                    Made with intention
+                  </span>
+
+                  <div className="atelier-pillars-grid">
+                    <div className="atelier-pillar-item">
+                      <span className="atelier-pillar-title">The Right Texture</span>
+                      <span className="atelier-pillar-desc">
+                        Styles selected for different moods, looks and ways of wearing your hair.
+                      </span>
+                    </div>
+                    <div className="atelier-pillar-item">
+                      <span className="atelier-pillar-title">Lengths That Change the Look</span>
+                      <span className="atelier-pillar-desc">
+                        From shorter, easy-to-wear styles to long statement lengths.
+                      </span>
+                    </div>
+                    <div className="atelier-pillar-item">
+                      <span className="atelier-pillar-title">Comfort Matters</span>
+                      <span className="atelier-pillar-desc">
+                        Because looking good shouldn&apos;t mean spending the whole day adjusting your wig.
+                      </span>
+                    </div>
+                    <div className="atelier-pillar-item">
+                      <span className="atelier-pillar-title">Made for Real Life</span>
+                      <span className="atelier-pillar-desc">
+                        Beautiful enough for your big moments. Easy enough for your everyday ones.
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
-
-              <div className="specimen-row">
-                <div className="specimen-meta">
-                  <span className="specimen-tag">Heading 1</span>
-                  <span className="specimen-details">Cormorant Garamond 44px</span>
-                </div>
-                <div>
-                  <h1>Handcrafted HD Lace Frontals</h1>
-                </div>
-              </div>
-
-              <div className="specimen-row">
-                <div className="specimen-meta">
-                  <span className="specimen-tag">Heading 2</span>
-                  <span className="specimen-details">Cormorant Garamond 32px</span>
-                </div>
-                <div>
-                  <h2>Unprocessed Single Donor Virgin Hair</h2>
-                </div>
-              </div>
-
-              <div className="specimen-row">
-                <div className="specimen-meta">
-                  <span className="specimen-tag">Heading 3</span>
-                  <span className="specimen-details">Cormorant Garamond 24px</span>
-                </div>
-                <div>
-                  <h3>Natural Movement & Effortless Styling</h3>
-                </div>
-              </div>
-
-              <div className="specimen-row">
-                <div className="specimen-meta">
-                  <span className="specimen-tag">Functional H4 & Price</span>
-                  <span className="specimen-details">DM Sans Semi-bold 18px</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-4)' }}>
-                  <h4>Raw Cambodian Wavy Unit</h4>
-                  <span className="price-tag price-tag--accent price-tag--lg">$420.00</span>
-                </div>
-              </div>
-
-              <div className="specimen-row">
-                <div className="specimen-meta">
-                  <span className="specimen-tag">Editorial Quote</span>
-                  <span className="specimen-details">Cormorant Garamond Italic</span>
-                </div>
-                <div>
-                  <blockquote className="editorial-quote">
-                    &ldquo;A woman&apos;s crown should never look borrowed. It should look like an
-                    intimate extension of her grace and command.&rdquo;
-                  </blockquote>
-                </div>
-              </div>
-
-              <div className="specimen-row">
-                <div className="specimen-meta">
-                  <span className="specimen-tag">Body & Microcopy</span>
-                  <span className="specimen-details">DM Sans Regular 16px / 14px</span>
-                </div>
-                <div>
-                  <p className="text-body" style={{ maxWidth: '64ch', marginBottom: 'var(--space-2)' }}>
-                    Every wig in the Tresses by Shabby atelier is custom-knotted onto ultra-fine Swiss
-                    HD lace, ensuring seamless blending across all skin tones without bulky seams or
-                    unnatural density.
-                  </p>
-                  <p className="text-sm text-muted">
-                    Available in lengths 14&quot; through 30&quot;. Standard cap sizes S, M, and L.
-                  </p>
-                </div>
-              </div>
             </div>
           </Container>
         </section>
 
-        {/* 5. Button & Action Foundations */}
-        <section className="editorial-section" id="buttons" aria-labelledby="buttons-heading">
+        {/* 5. Texture Discovery */}
+        <section className="editorial-section" id="textures" aria-labelledby="textures-title">
           <Container>
             <div className="editorial-section-header">
-              <span className="editorial-eyebrow">Interactive Foundations</span>
-              <h2 id="buttons-heading">Buttons & Link System</h2>
+              <span className="editorial-eyebrow">Discovery</span>
+              <h2 id="textures-title">Find your texture. Find your look.</h2>
               <p className="text-muted">
-                Restrained geometry with 2px corner radius (strictly avoiding bubble buttons),
-                compliant touch targets (min 44px for standard buttons), and high-contrast states.
+                Not sure where to start? Explore our textures and see which one feels most like you.
               </p>
             </div>
 
-            <div className="components-showcase-grid">
-              {/* Button Variants */}
-              <div className="component-demo-block">
-                <span className="component-demo-block-title">Variants Hierarchy</span>
-                <div className="buttons-group">
-                  <Button variant="primary">Deep Burgundy Primary</Button>
-                  <Button variant="secondary">Dusty Rose Secondary</Button>
-                  <Button variant="outline">Outline Default</Button>
-                  <Button variant="ghost">Ghost Action</Button>
-                  <Button variant="editorial">Editorial Link &rarr;</Button>
-                </div>
-              </div>
+            <div className="texture-discovery-grid">
+              {TEXTURE_GUIDES.map((guide) => (
+                <article key={guide.id} className="texture-card">
+                  <div className="texture-card-header">
+                    <h3 className="texture-title">{guide.name}</h3>
+                  </div>
 
-              {/* Button Sizes */}
-              <div className="component-demo-block">
-                <span className="component-demo-block-title">Scale & Touch Targets</span>
-                <div className="buttons-group" style={{ alignItems: 'center' }}>
-                  <Button variant="primary" size="sm">
-                    Small (36px)
-                  </Button>
-                  <Button variant="primary" size="md">
-                    Medium 44px (Standard)
-                  </Button>
-                  <Button variant="primary" size="lg">
-                    Large 52px (Prominent)
-                  </Button>
-                </div>
-              </div>
+                  <p className="texture-card-desc">{guide.description}</p>
 
-              {/* Interactive States */}
-              <div className="component-demo-block">
-                <span className="component-demo-block-title">States & Accessibility</span>
-                <div className="buttons-group">
-                  <Button variant="primary" isLoading>
-                    Loading Action
-                  </Button>
-                  <Button variant="primary" disabled>
-                    Disabled State
-                  </Button>
-                  <Button variant="outline" disabled>
-                    Disabled Outline
-                  </Button>
-                  <Button
-                    variant="outline"
-                    as="a"
-                    href="#palette"
-                    rightIcon={<span aria-hidden="true">&uarr;</span>}
-                  >
-                    Polymorphic Anchor
-                  </Button>
-                </div>
-              </div>
-
-              {/* Badges / Editorial Tags */}
-              <div className="component-demo-block">
-                <span className="component-demo-block-title">Editorial Badges</span>
-                <div className="buttons-group">
-                  <Badge variant="rose">100% Virgin Hair</Badge>
-                  <Badge variant="burgundy">Limited Edition</Badge>
-                  <Badge variant="default">HD Swiss Lace</Badge>
-                  <Badge variant="outline">Pre-Plucked Hairline</Badge>
-                </div>
-              </div>
+                  <div style={{ marginTop: 'auto', paddingTop: 'var(--space-3)' }}>
+                    <Button
+                      as="a"
+                      href="#collection"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setActiveTextureFilter(guide.name)}
+                    >
+                      Explore {guide.name} &rarr;
+                    </Button>
+                  </div>
+                </article>
+              ))}
             </div>
           </Container>
         </section>
 
-        {/* 6. Form Controls Foundation */}
-        <section className="editorial-section editorial-section--subtle" id="forms" aria-labelledby="forms-heading">
-          <Container narrow>
+        {/* 6. Care & Styling */}
+        <section className="editorial-section editorial-section--subtle" id="care" aria-labelledby="care-title">
+          <Container>
             <div className="editorial-section-header">
-              <span className="editorial-eyebrow">Input System</span>
-              <h2 id="forms-heading">Accessible Form Controls</h2>
+              <span className="editorial-eyebrow">Care &amp; Styling</span>
+              <h2 id="care-title">Keep your Tresses looking good.</h2>
               <p className="text-muted">
-                Crafted for low-friction shopping: crisp borders, clear focus rings, and proper
-                ARIA associations for errors and instructions.
+                A little care goes a long way. From washing and detangling to storing your wig between wears, we&apos;ll show you how to keep your favourite styles looking their best.
               </p>
             </div>
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault()
-                setNewsletterSubscribed(true)
-              }}
-              style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}
-            >
-              <Input
-                label="Full Name"
-                placeholder="e.g. Amara Sterling"
-                value={testInput}
-                onChange={(e) => setTestInput(e.target.value)}
-                helperText="As it should appear on your order confirmation"
-                required
-              />
+            <div className="care-rituals-grid">
+              <div className="care-ritual-item">
+                <span className="care-ritual-num">01</span>
+                <h3 className="care-ritual-title">Washing &amp; Conditioning</h3>
+                <p className="care-ritual-desc">
+                  Simple routines for keeping your hair fresh.
+                </p>
+              </div>
 
-              <Input
-                label="Email Address"
-                type="email"
-                placeholder="amara@example.com"
-                helperText="We will send your bespoke order summary and receipt here"
-                required
-              />
+              <div className="care-ritual-item">
+                <span className="care-ritual-num">02</span>
+                <h3 className="care-ritual-title">Detangling</h3>
+                <p className="care-ritual-desc">
+                  How to brush, comb and handle your wig gently.
+                </p>
+              </div>
 
-              <Select
-                label="Desired Hair Texture"
-                options={textureOptions}
-                value={selectedTexture}
-                onChange={(e) => setSelectedTexture(e.target.value)}
-                helperText="Each texture is ethically sourced from single-donor bundles"
-              />
+              <div className="care-ritual-item">
+                <span className="care-ritual-num">03</span>
+                <h3 className="care-ritual-title">Heat Styling</h3>
+                <p className="care-ritual-desc">
+                  What to keep in mind before reaching for the heat.
+                </p>
+              </div>
 
-              {/* Demonstration of Form Validation / Error State */}
-              <Input
-                label="Validation Error State Example"
-                defaultValue="invalid-postal-code"
-                errorMessage="Please enter a valid postal code for delivery calculation"
-                required
-              />
+              <div className="care-ritual-item">
+                <span className="care-ritual-num">04</span>
+                <h3 className="care-ritual-title">Storage</h3>
+                <p className="care-ritual-desc">
+                  Easy ways to protect your wig between wears.
+                </p>
+              </div>
+            </div>
 
-              {/* Styled Accessible Checkbox */}
-              <label className="form-check">
-                <input
-                  type="checkbox"
-                  className="form-check-input"
-                  defaultChecked
-                />
-                <span className="form-check-label">
-                  Receive private atelier drops and bespoke care guides (No spam, ever).
-                </span>
-              </label>
+            <div style={{ marginTop: 'var(--space-8)' }}>
+              <Button as="a" href="#care" variant="editorial" size="md">
+                Read the Care Guide &rarr;
+              </Button>
+            </div>
+          </Container>
+        </section>
 
-              <div style={{ marginTop: 'var(--space-4)' }}>
-                <Button type="submit" variant="primary" size="md">
-                  {newsletterSubscribed ? 'Subscribed to Atelier Notes ✓' : 'Save Consultation Preferences'}
+        {/* 7. Final Call-to-Action */}
+        <section className="editorial-section editorial-section--burgundy" aria-labelledby="cta-heading">
+          <Container>
+            <div className="cta-editorial-box">
+              <span
+                className="editorial-eyebrow"
+                style={{ color: '#F7EAEF', marginBottom: 'var(--space-2)' }}
+              >
+                Atelier Concierge
+              </span>
+              <h2 id="cta-heading">Found your one?</h2>
+              <p>
+                Take another look. Your next favourite might be waiting.
+              </p>
+              <div className="cta-btn-group">
+                <Button as="a" href="#collection" variant="secondary" size="lg">
+                  Explore the Collection &rarr;
+                </Button>
+                <Button
+                  as="a"
+                  href="https://wa.me/2348000000000"
+                  target="_blank"
+                  rel="noreferrer"
+                  variant="outline"
+                  size="lg"
+                  style={{
+                    borderColor: 'rgba(255, 253, 252, 0.4)',
+                    color: 'var(--color-text-inverse)',
+                  }}
+                >
+                  Need help choosing? Talk to us &rarr;
                 </Button>
               </div>
-            </form>
+            </div>
           </Container>
         </section>
+        </>
+        )}
 
-        {/* 7. Product Composition Foundation (No Bubble Card Soup) */}
-        <section className="editorial-section" id="product-foundation" aria-labelledby="product-heading">
+        {view === 'checkout' && (
+        <section className="editorial-section" aria-labelledby="checkout-title">
           <Container>
             <div className="editorial-section-header">
-              <span className="editorial-eyebrow">Composition Rule</span>
-              <h2 id="product-heading">Product-First Editorial Composition</h2>
+              <span className="editorial-eyebrow">Checkout</span>
+              <h2 id="checkout-title">Almost yours.</h2>
               <p className="text-muted">
-                Verifying Design Principle 1 &amp; 3: No large bubble card containers. The product
-                imagery remains visually dominant with crisp boundaries and direct variant interaction.
+                This is an order placement, not a payment. No card details are collected.
               </p>
             </div>
 
-            <div className="editorial-product-strip">
-              {/* Product Specimen 1 */}
-              <article className="editorial-product-card">
-                <div className="product-media-wrapper">
-                  <div className="product-badges-overlay">
-                    <Badge variant="burgundy">Bestseller</Badge>
-                  </div>
-                  {/* Visual Hair Artwork */}
-                  <svg
-                    viewBox="0 0 300 400"
-                    width="100%"
-                    height="100%"
-                    style={{ background: '#F5EFEA' }}
-                    role="img"
-                    aria-label="Raw Burmese Body Wave Wig close-up"
-                  >
-                    <path
-                      d="M150 70 C110 70 80 110 80 160 C80 260 60 350 40 400 L260 400 C240 350 220 260 220 160 C220 110 190 70 150 70 Z"
-                      fill="#542333"
+            {bagItems.length === 0 ? (
+              <div className="checkout-empty" role="status">
+                <p className="text-muted">Your bag is empty, so there&apos;s nothing to check out yet.</p>
+                <Button variant="outline" size="md" onClick={handleBackToShop}>
+                  Back to the Collection &rarr;
+                </Button>
+              </div>
+            ) : (
+              <div className="checkout-grid">
+                <form className="checkout-form" onSubmit={handlePlaceOrder} noValidate>
+                  <div className="checkout-field">
+                    <label htmlFor="checkout-name">Full name</label>
+                    <Input
+                      id="checkout-name"
+                      type="text"
+                      autoComplete="name"
+                      value={checkoutForm.customerName}
+                      onChange={(e) => setCheckoutForm((f) => ({ ...f, customerName: e.target.value }))}
+                      required
                     />
-                    <path
-                      d="M130 110 C100 170 100 250 80 380 C110 330 120 230 140 150 Z"
-                      fill="#B85C78"
-                      opacity="0.8"
+                  </div>
+                  <div className="checkout-field">
+                    <label htmlFor="checkout-email">Email address</label>
+                    <Input
+                      id="checkout-email"
+                      type="email"
+                      autoComplete="email"
+                      value={checkoutForm.email}
+                      onChange={(e) => setCheckoutForm((f) => ({ ...f, email: e.target.value }))}
+                      required
                     />
-                  </svg>
-                </div>
-
-                <div className="product-info-block">
-                  <span className="product-category">Glueless HD Frontal</span>
-                  <h3 className="product-title">Raw Burmese Body Wave</h3>
-                  
-                  {/* Selectable Lengths */}
-                  <div className="product-variants-row" role="group" aria-label="Available lengths">
-                    {['16"', '18"', '20"', '22"', '24"'].map((length) => (
-                      <button
-                        key={length}
-                        type="button"
-                        className={`variant-pill ${selectedLength === length ? 'is-selected' : ''}`}
-                        onClick={() => setSelectedLength(length)}
-                        aria-pressed={selectedLength === length}
-                      >
-                        {length}
-                      </button>
-                    ))}
                   </div>
-
-                  <div className="product-footer-row">
-                    <span className="price-tag price-tag--accent">$395.00</span>
-                    <Button variant="outline" size="sm">
-                      Add to Bag
-                    </Button>
-                  </div>
-                </div>
-              </article>
-
-              {/* Product Specimen 2 */}
-              <article className="editorial-product-card">
-                <div className="product-media-wrapper">
-                  <div className="product-badges-overlay">
-                    <Badge variant="rose">Virgin Hair</Badge>
-                  </div>
-                  <svg
-                    viewBox="0 0 300 400"
-                    width="100%"
-                    height="100%"
-                    style={{ background: '#ECE6E0' }}
-                    role="img"
-                    aria-label="Cambodian Silky Straight Wig"
-                  >
-                    <path
-                      d="M150 70 C120 70 95 100 95 150 L95 400 L205 400 L205 150 C205 100 180 70 150 70 Z"
-                      fill="#211D1E"
+                  <div className="checkout-field">
+                    <label htmlFor="checkout-phone">Phone number</label>
+                    <Input
+                      id="checkout-phone"
+                      type="tel"
+                      autoComplete="tel"
+                      value={checkoutForm.phone}
+                      onChange={(e) => setCheckoutForm((f) => ({ ...f, phone: e.target.value }))}
+                      required
                     />
-                    <line x1="150" y1="90" x2="150" y2="400" stroke="#756D6F" strokeWidth="1" strokeDasharray="3 3" />
-                  </svg>
-                </div>
-
-                <div className="product-info-block">
-                  <span className="product-category">13x6 Full Lace</span>
-                  <h3 className="product-title">Cambodian Silky Straight</h3>
-                  
-                  <div className="product-variants-row" role="group" aria-label="Available lengths">
-                    {['18"', '20"', '22"', '26"'].map((length) => (
-                      <button
-                        key={length}
-                        type="button"
-                        className={`variant-pill ${length === '22"' ? 'is-selected' : ''}`}
-                      >
-                        {length}
-                      </button>
-                    ))}
                   </div>
-
-                  <div className="product-footer-row">
-                    <span className="price-tag price-tag--accent">$440.00</span>
-                    <Button variant="outline" size="sm">
-                      Add to Bag
-                    </Button>
-                  </div>
-                </div>
-              </article>
-
-              {/* Product Specimen 3 */}
-              <article className="editorial-product-card">
-                <div className="product-media-wrapper">
-                  <div className="product-badges-overlay">
-                    <Badge variant="default">Custom Order</Badge>
-                  </div>
-                  <svg
-                    viewBox="0 0 300 400"
-                    width="100%"
-                    height="100%"
-                    style={{ background: '#F1EBE4' }}
-                    role="img"
-                    aria-label="South Indian Deep Curly Wig"
-                  >
-                    <path
-                      d="M150 65 C100 65 70 100 70 160 C70 280 50 360 30 400 L270 400 C250 360 230 280 230 160 C230 100 200 65 150 65 Z"
-                      fill="#542333"
+                  <div className="checkout-field">
+                    <label htmlFor="checkout-address">Delivery address</label>
+                    <textarea
+                      id="checkout-address"
+                      className="checkout-textarea"
+                      autoComplete="street-address"
+                      rows={4}
+                      value={checkoutForm.deliveryAddress}
+                      onChange={(e) => setCheckoutForm((f) => ({ ...f, deliveryAddress: e.target.value }))}
+                      required
                     />
-                    <circle cx="110" cy="200" r="14" fill="#B85C78" opacity="0.6" />
-                    <circle cx="190" cy="220" r="16" fill="#B85C78" opacity="0.6" />
-                    <circle cx="130" cy="300" r="18" fill="#B85C78" opacity="0.6" />
-                  </svg>
-                </div>
-
-                <div className="product-info-block">
-                  <span className="product-category">HD Closure Unit</span>
-                  <h3 className="product-title">South Indian Deep Curly</h3>
-                  
-                  <div className="product-variants-row" role="group" aria-label="Available lengths">
-                    {['14"', '16"', '18"', '20"'].map((length) => (
-                      <button
-                        key={length}
-                        type="button"
-                        className={`variant-pill ${length === '16"' ? 'is-selected' : ''}`}
-                      >
-                        {length}
-                      </button>
-                    ))}
                   </div>
 
-                  <div className="product-footer-row">
-                    <span className="price-tag price-tag--accent">$365.00</span>
-                    <Button variant="outline" size="sm">
-                      Add to Bag
-                    </Button>
+                  {checkoutError && (
+                    <p className="checkout-error" role="alert">
+                      {checkoutError}
+                    </p>
+                  )}
+
+                  <Button variant="primary" size="lg" type="submit" disabled={isPlacingOrder}>
+                    {isPlacingOrder ? 'Placing your order…' : `Place Order • ${formatNaira(bagSubtotal)}`}
+                  </Button>
+                  <Button variant="outline" size="md" type="button" onClick={handleBackToShop} disabled={isPlacingOrder}>
+                    Back to the Collection
+                  </Button>
+                </form>
+
+                <aside className="checkout-summary" aria-label="Order summary">
+                  <h3 className="checkout-summary-title">Your Order</h3>
+                  {bagItems.map((item) => (
+                    <div key={item.id} className="checkout-summary-row">
+                      <div>
+                        <span className="checkout-summary-name">{item.product.name}</span>
+                        <span className="checkout-summary-meta">
+                          Length {item.variant.length} &bull; Qty {item.quantity} &bull; {formatNaira(item.variant.price)} each
+                        </span>
+                      </div>
+                      <span className="checkout-summary-line">
+                        {formatNaira(item.variant.price * item.quantity)}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="checkout-summary-total-row">
+                    <span>Subtotal</span>
+                    <span>{formatNaira(bagSubtotal)}</span>
                   </div>
+                  <div className="checkout-summary-total-row checkout-summary-grand">
+                    <span>Total</span>
+                    <span>{formatNaira(bagSubtotal)}</span>
+                  </div>
+                </aside>
+              </div>
+            )}
+          </Container>
+        </section>
+        )}
+
+        {view === 'confirmation' && placedOrder && (
+        <section className="editorial-section" aria-labelledby="confirmation-title">
+          <Container>
+            <div className="order-confirmation">
+              <Badge variant="rose">Order received</Badge>
+              <h2 id="confirmation-title">Thank you. Your order is in.</h2>
+              <p className="text-muted">
+                We&apos;ve received your order and will be in touch about delivery.
+                A confirmation has been recorded for {placedOrder.email}.
+              </p>
+              <dl className="order-confirmation-details">
+                <div>
+                  <dt>Order reference</dt>
+                  <dd>#{placedOrder.id.slice(0, 8).toUpperCase()}</dd>
                 </div>
-              </article>
+                <div>
+                  <dt>Email</dt>
+                  <dd>{placedOrder.email}</dd>
+                </div>
+                <div>
+                  <dt>Total</dt>
+                  <dd>{formatNaira(placedOrder.total)}</dd>
+                </div>
+              </dl>
+              <Button variant="primary" size="lg" onClick={handleBackToShop}>
+                Back to the Collection &rarr;
+              </Button>
             </div>
           </Container>
         </section>
+        )}
       </main>
 
-      {/* 8. Editorial Footer */}
-      <footer
-        style={{
-          borderTop: '1px solid var(--color-border)',
-          backgroundColor: 'var(--color-surface)',
-          paddingBlock: 'var(--space-12)',
-        }}
-      >
+      {/* 8. Footer */}
+      <footer className="storefront-footer" role="contentinfo">
         <Container>
-          <div
-            style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              justifyContent: 'space-between',
-              alignItems: 'baseline',
-              gap: 'var(--space-6)',
-            }}
-          >
-            <div>
-              <span className="brand-title" style={{ display: 'block', fontSize: '1.5rem' }}>
-                Tresses by Shabby
-              </span>
-              <span className="brand-subtitle">Editorial Wig Atelier &bull; Design Foundation</span>
+          <div className="footer-main-grid">
+            {/* Brand Column */}
+            <div className="footer-brand-column">
+              <span className="footer-brand-title">Tresses by Shabby</span>
+              <p className="footer-brand-desc">
+                Wigs for everyday beauty, special occasions, and everything in between.
+              </p>
+              <span className="footer-location-tag">Lagos, Nigeria</span>
             </div>
 
-            <div style={{ display: 'flex', gap: 'var(--space-6)', flexWrap: 'wrap' }}>
-              <a href="#palette" className="link-editorial">Color System</a>
-              <a href="#typography" className="link-editorial">Typography</a>
-              <a href="#buttons" className="link-editorial">Buttons</a>
-              <a href="#forms" className="link-editorial">Form Controls</a>
+            {/* Collection Links */}
+            <div className="footer-links-column">
+              <span className="footer-column-heading">Collection</span>
+              <ul className="footer-link-list">
+                <li>
+                  <a
+                    href="#collection"
+                    className="footer-link"
+                    onClick={() => setActiveTextureFilter('All')}
+                  >
+                    Shop All
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="#collection"
+                    className="footer-link"
+                    onClick={() => setActiveTextureFilter('Wavy')}
+                  >
+                    Wavy
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="#collection"
+                    className="footer-link"
+                    onClick={() => setActiveTextureFilter('Straight')}
+                  >
+                    Straight
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="#collection"
+                    className="footer-link"
+                    onClick={() => setActiveTextureFilter('Curly')}
+                  >
+                    Curly
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="#collection"
+                    className="footer-link"
+                    onClick={() => setActiveTextureFilter('Kinky Straight')}
+                  >
+                    Kinky Straight
+                  </a>
+                </li>
+              </ul>
             </div>
 
-            <p className="text-xs text-muted">
-              Built with React 19 + TypeScript + Vite &bull; Accessible &bull; Touch Optimized
-            </p>
+            {/* The House Links */}
+            <div className="footer-links-column">
+              <span className="footer-column-heading">The House</span>
+              <ul className="footer-link-list">
+                <li><a href="#atelier" className="footer-link">Our Story</a></li>
+                <li><a href="#textures" className="footer-link">Textures &amp; Lengths</a></li>
+                <li><a href="#care" className="footer-link">Care &amp; Styling</a></li>
+                <li><a href="#contact" className="footer-link">Contact</a></li>
+              </ul>
+            </div>
+
+            {/* Newsletter Column */}
+            <div className="footer-newsletter-column">
+              <span className="footer-column-heading">Stay in the know</span>
+              <p className="footer-newsletter-desc">
+                New drops, styling inspiration and a little Tresses magic in your inbox.
+              </p>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  if (newsletterEmail) {
+                    setNewsletterFeedback(true)
+                  }
+                }}
+                className="footer-newsletter-form"
+              >
+                <Input
+                  type="email"
+                  placeholder="your.email@domain.com"
+                  value={newsletterEmail}
+                  onChange={(e) => setNewsletterEmail(e.target.value)}
+                  required
+                  aria-label="Email address for Tresses newsletter"
+                />
+                <Button type="submit" variant="primary" size="sm">
+                  Join
+                </Button>
+              </form>
+              {newsletterFeedback && (
+                <span className="text-xs" style={{ color: 'var(--color-primary)' }}>
+                  You&apos;re on the list. Talk soon.
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Footer Bottom Bar */}
+          <div className="footer-bottom-row">
+            <span>
+              &copy; {new Date().getFullYear()} Tresses by Shabby. All rights reserved.
+            </span>
+            <span style={{ color: 'var(--color-burgundy)', fontWeight: 500 }}>
+              All pricing in Nigerian Naira (₦)
+            </span>
+            <div style={{ display: 'flex', gap: 'var(--space-4)' }}>
+              <a href="#care" className="footer-link">Privacy Policy</a>
+              <a href="#care" className="footer-link">Terms of Service</a>
+            </div>
           </div>
         </Container>
       </footer>
+
+      {/* 9. Slide-Over Shopping Bag Drawer */}
+      {isBagOpen && (
+        <div
+          className="bag-drawer-backdrop"
+          onClick={() => setIsBagOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="bag-drawer-title"
+        >
+          <div className="bag-drawer-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="bag-drawer-header">
+              <h2 id="bag-drawer-title" className="bag-drawer-title">
+                Shopping Bag ({totalItemCount})
+              </h2>
+              <button
+                type="button"
+                className="bag-close-btn"
+                onClick={() => setIsBagOpen(false)}
+                aria-label="Close shopping bag"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="bag-items-list">
+              {bagItems.length === 0 ? (
+                <div className="bag-empty-state">
+                  <svg
+                    width="48"
+                    height="48"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#DED6D2"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+                    <line x1="3" y1="6" x2="21" y2="6" />
+                    <path d="M16 10a4 4 0 0 1-8 0" />
+                  </svg>
+                  <p style={{ fontWeight: 500 }}>Your bag is currently empty.</p>
+                  <span className="text-xs">
+                    Explore our collection to find your next look.
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsBagOpen(false)}
+                    style={{ marginTop: 'var(--space-3)' }}
+                  >
+                    Browse Wigs &rarr;
+                  </Button>
+                </div>
+              ) : (
+                bagItems.map((item) => (
+                  <div key={item.id} className="bag-item-row">
+                    <div className="bag-item-thumb">
+                      <EditorialImage
+                        slug={item.product.images.primary}
+                        alt={item.product.name}
+                        aspectRatio="3:4"
+                      />
+                    </div>
+                    <div className="bag-item-info">
+                      <h3 className="bag-item-name">{item.product.name}</h3>
+                      <span className="bag-item-variant">
+                        Length: {item.variant.length} &bull; {formatNaira(item.variant.price)} each
+                      </span>
+                      <div className="bag-qty-controls">
+                        <button
+                          type="button"
+                          className="bag-qty-btn"
+                          onClick={() => handleDecreaseQuantity(item.id)}
+                          aria-label={`Decrease quantity of ${item.product.name}`}
+                        >
+                          &minus;
+                        </button>
+                        <span className="bag-qty-value" aria-label={`Quantity: ${item.quantity}`}>
+                          {item.quantity}
+                        </span>
+                        <button
+                          type="button"
+                          className="bag-qty-btn"
+                          onClick={() => handleIncreaseQuantity(item.id)}
+                          aria-label={`Increase quantity of ${item.product.name}`}
+                        >
+                          +
+                        </button>
+                      </div>
+                      <span className="bag-item-price">
+                        {formatNaira(item.variant.price * item.quantity)}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="bag-item-remove-btn"
+                      onClick={() => handleRemoveFromBag(item.id)}
+                      aria-label={`Remove ${item.product.name} from bag`}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {bagItems.length > 0 && (
+              <div className="bag-drawer-footer">
+                <div className="bag-subtotal-row">
+                  <span className="bag-subtotal-label">Subtotal</span>
+                  <span className="bag-subtotal-amount">{formatNaira(bagSubtotal)}</span>
+                </div>
+                <div className="bag-subtotal-row">
+                  <span className="bag-subtotal-label">Total</span>
+                  <span className="bag-subtotal-amount">{formatNaira(bagSubtotal)}</span>
+                </div>
+                <Button
+                  variant="primary"
+                  size="lg"
+                  fullWidth
+                  onClick={handleProceedToCheckout}
+                >
+                  Proceed to Checkout &bull; {formatNaira(bagSubtotal)}
+                </Button>
+                <p className="bag-checkout-notice">
+                  Delivery details will be confirmed during checkout. Handcrafted in Lagos, Nigeria.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 10. Product Quick Inspect Modal */}
+      {selectedProductForInspect && modalVariant && (
+        <div
+          className="inspect-modal-backdrop"
+          onClick={() => setSelectedProductForInspect(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="inspect-product-title"
+        >
+          <div className="inspect-modal-box" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="inspect-close-btn"
+              onClick={() => setSelectedProductForInspect(null)}
+              aria-label="Close product inspection"
+            >
+              &times;
+            </button>
+
+            <div className="inspect-modal-media">
+              <EditorialImage
+                slug={selectedProductForInspect.images.primary}
+                alt={selectedProductForInspect.images.alt}
+                aspectRatio="3:4"
+              />
+            </div>
+
+            <div className="inspect-modal-details">
+              <div>
+                <span className="editorial-eyebrow">
+                  {selectedProductForInspect.texture}
+                </span>
+                <h2 id="inspect-product-title" style={{ marginTop: 'var(--space-1)' }}>
+                  {selectedProductForInspect.name}
+                </h2>
+                <span className="price-tag price-tag--accent price-tag--lg">
+                  {formatNaira(modalVariant.price)}
+                </span>
+              </div>
+
+              <p className="text-body" style={{ color: 'var(--color-text-muted)' }}>
+                {selectedProductForInspect.description}
+              </p>
+
+              <div className="inspect-specs-list">
+                <div className="inspect-spec-row">
+                  <span className="inspect-spec-name">Cap &amp; Construction:</span>
+                  <span className="inspect-spec-val">{selectedProductForInspect.construction}</span>
+                </div>
+                <div className="inspect-spec-row">
+                  <span className="inspect-spec-name">Texture:</span>
+                  <span className="inspect-spec-val">{selectedProductForInspect.texture}</span>
+                </div>
+                <div className="inspect-spec-row">
+                  <span className="inspect-spec-name">Availability:</span>
+                  <span className="inspect-spec-val" style={{ color: 'var(--color-burgundy)' }}>
+                    {modalVariant.stock} available
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <span
+                  style={{
+                    display: 'block',
+                    fontSize: '0.75rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                    color: 'var(--color-text-muted)',
+                    marginBottom: 'var(--space-2)',
+                  }}
+                >
+                  Length:
+                </span>
+                <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+                  {selectedProductForInspect.variants.map((v) => (
+                    <button
+                      key={v.id}
+                      type="button"
+                      className={`tbs-variant-pill ${modalVariant.id === v.id ? 'is-selected' : ''}`}
+                      onClick={() => setModalVariant(v)}
+                    >
+                      {v.length} ({formatNaira(v.price)})
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-2)' }}>
+                <Button
+                  variant="primary"
+                  size="md"
+                  fullWidth
+                  onClick={() => {
+                    handleAddToBag(selectedProductForInspect, modalVariant)
+                    setSelectedProductForInspect(null)
+                    setIsBagOpen(true)
+                  }}
+                >
+                  Add to Bag &bull; {formatNaira(modalVariant.price)}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
-

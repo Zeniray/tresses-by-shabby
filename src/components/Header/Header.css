@@ -69,6 +69,53 @@
   gap: var(--space-3);
 }
 
+/* Shopping Bag Trigger Button */
+.brand-bag-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  min-height: 38px;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  transition: all var(--transition-fast);
+}
+
+.brand-bag-trigger:hover {
+  border-color: var(--color-burgundy);
+  color: var(--color-burgundy);
+}
+
+.brand-bag-trigger:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.brand-bag-text {
+  letter-spacing: var(--tracking-wide);
+}
+
+.brand-bag-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  background-color: var(--color-burgundy);
+  color: var(--color-text-inverse);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-bold);
+  border-radius: 9px;
+  line-height: 1;
+}
+
 .mobile-menu-toggle {
   display: none;
   background: transparent;
@@ -130,3 +177,33 @@
   }
 }
 
+
+/* Account / auth */
+.brand-account {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.brand-account-name {
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.brand-account-signout {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  text-decoration: underline;
+  padding: 0;
+}
+
+.brand-account-signout:hover {
+  color: var(--color-error);
+}

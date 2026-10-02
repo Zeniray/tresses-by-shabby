@@ -4,4 +4,6 @@ export * from './Select/index.ts'
 export * from './Badge/index.ts'
 export * from './Container/index.ts'
 export * from './Header/index.ts'
+export * from './EditorialImage/index.ts'
+export * from './ProductCard/index.ts'
 
